@@ -1,11 +1,9 @@
 # MBR Bulk WP Detector
 
-[![WordPress Plugin Version](https://img.shields.io/badge/WordPress-2.1.0-blue.svg)](https://wordpress.org)
-[![PHP Version](https://img.shields.io/badge/PHP-7.2+-purple.svg)](https://php.net)
-[![License](https://img.shields.io/badge/License-GPLv2-green.svg)](https://www.gnu.org/licenses/gpl-2.0.html)
-[![Tested Up To](https://img.shields.io/badge/Tested%20Up%20To-WP%206.4-brightgreen.svg)](https://wordpress.org)
-[![Made by Robert](https://img.shields.io/badge/Made%20by-Robert-orange.svg)](https://littlewebshack.com)
-[![GitHub Downloads](https://img.shields.io/github/downloads/harbourbob/mbr-bulk-wp-detector/total)](https://github.com/harbourbob/mbr-bulk-wp-detector/releases)
+[![GitHub Release](https://img.shields.io/github/v/release/harbourbob/MBR-Bulk-WP-Detector)](https://github.com/harbourbob/MBR-Bulk-WP-Detector/releases)
+[![GitHub Stars](https://img.shields.io/github/stars/harbourbob/MBR-Bulk-WP-Detector?style=social)](https://github.com/harbourbob/MBR-Bulk-WP-Detector)
+[![GitHub Forks](https://img.shields.io/github/forks/harbourbob/MBR-Bulk-WP-Detector?style=social)](https://github.com/harbourbob/MBR-Bulk-WP-Detector)
+[![GitHub Issues](https://img.shields.io/github/issues/harbourbob/MBR-Bulk-WP-Detector)](https://github.com/harbourbob/MBR-Bulk-WP-Detector/issues)
 
 **Transform your lead qualification process with bulk WordPress detection!**
 
