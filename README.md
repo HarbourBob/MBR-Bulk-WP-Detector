@@ -1,6 +1,7 @@
 # MBR Bulk WP Detector
 
 [![GitHub Release](https://img.shields.io/github/v/release/harbourbob/MBR-Bulk-WP-Detector)](https://github.com/harbourbob/MBR-Bulk-WP-Detector/releases)
+[![GitHub Downloads](https://img.shields.io/github/downloads/harbourbob/MBR-Bulk-WP-Detector/total)](https://github.com/harbourbob/MBR-Bulk-WP-Detector/releases)
 [![GitHub Stars](https://img.shields.io/github/stars/harbourbob/MBR-Bulk-WP-Detector?style=social)](https://github.com/harbourbob/MBR-Bulk-WP-Detector)
 [![GitHub Forks](https://img.shields.io/github/forks/harbourbob/MBR-Bulk-WP-Detector?style=social)](https://github.com/harbourbob/MBR-Bulk-WP-Detector)
 [![GitHub Issues](https://img.shields.io/github/issues/harbourbob/MBR-Bulk-WP-Detector)](https://github.com/harbourbob/MBR-Bulk-WP-Detector/issues)
