@@ -28,6 +28,7 @@ A powerful WordPress plugin designed for agencies, marketers, developers, and fr
 
 - **6 Detection Methods**: REST API, link headers, HTML markers, login pages, XML-RPC, robots.txt
 - **Deep Scan Mode**: Detect WordPress version, themes, and plugins
+- **Company Information**: Poll company name, email address and phone number
 - **Confidence Scoring**: High/Medium/Low accuracy indicators
 - **99%+ Accuracy**: Smart algorithms with multi-method verification
 
