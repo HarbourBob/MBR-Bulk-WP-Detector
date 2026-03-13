@@ -4,7 +4,7 @@ Donate link: https://littlewebshack.com/about/
 Tags: wordpress detector, bulk checker, lead generation, platform detection, site analyzer
 Requires at least: 5.0
 Tested up to: 6.4
-Stable tag: 2.1.0
+Stable tag: 2.2.0
 Requires PHP: 7.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -15,7 +15,7 @@ Bulk detect WordPress installations across unlimited URLs. Perfect for agencies,
 
 **Transform your lead qualification process with bulk WordPress detection!**
 
-MBR Bulk WP Detector is a powerful tool designed for agencies, marketers, developers, and freelancers who need to quickly identify which websites are running WordPress. Upload hundreds or thousands of URLs and get instant results with detailed insights about themes, plugins, and versions.
+MBR Bulk WP Detector is a powerful tool designed for agencies, marketers, developers, and freelancers who need to quickly identify which websites are running WordPress. Upload hundreds or thousands of URLs and get instant results with detailed insights about themes, plugins, and versions.  It also scans for company name, phone number and email address.
 
 = Perfect For =
 
@@ -229,7 +229,7 @@ This plugin is specifically designed for WordPress detection. While it accuratel
 No artificial limits! The only limitation is your server resources. Standard shared hosting easily handles 500-1000 URLs per batch.
 
 == Changelog ==
-= 2.1.0 - Added Phone & Email Harvesting
+= 2.2.0 - Added Phone & Email Harvesting
 
 = 2.0.0 - November 2025 =
 

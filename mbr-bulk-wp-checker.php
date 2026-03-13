@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       MBR Bulk WP Detector
  * Description:       Bulk check websites to detect WordPress installations. Find themes, plugins, and versions. Perfect for agencies and marketers targeting WordPress users.
- * Version:           2.1.0
+ * Version:           2.2.0
  * Author:            Robert Palmer
  * Author URI:        https://littlewebshack.com
  * Requires at least: 5.6
@@ -48,7 +48,7 @@ if ( ! class_exists( 'WP_Platform_Checker' ) ) {
 		 *
 		 * @var string
 		 */
-		private $version = '2.1.0';
+		private $version = '2.2.0';
 
 		/**
 		 * Plugin slug
@@ -108,6 +108,13 @@ if ( ! class_exists( 'WP_Platform_Checker' ) ) {
 			
 			// If both exist, we're good
 			if ( $history_exists && $lists_exists ) {
+				// Migrate: add company_name column if it doesn't exist (v2.1.0 -> v2.2.0)
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$col = $wpdb->get_results( "SHOW COLUMNS FROM {$this->history_table} LIKE 'company_name'" );
+				if ( empty( $col ) ) {
+					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					$wpdb->query( "ALTER TABLE {$this->history_table} ADD COLUMN company_name varchar(200) DEFAULT NULL AFTER wp_version" );
+				}
 				return;
 			}
 			
@@ -135,6 +142,7 @@ if ( ! class_exists( 'WP_Platform_Checker' ) ) {
 				theme varchar(200) DEFAULT NULL,
 				plugins text DEFAULT NULL,
 				wp_version varchar(20) DEFAULT NULL,
+				company_name varchar(200) DEFAULT NULL,
 				contact_email varchar(200) DEFAULT NULL,
 				contact_phone varchar(50) DEFAULT NULL,
 				checked_at datetime NOT NULL,
@@ -219,7 +227,7 @@ http://another-example.net"></textarea>
 								<h4><?php esc_html_e( 'Detection Options', 'robs-bulk-wp-platform-checker' ); ?></h4>
 								<label>
 									<input type="checkbox" id="wppc-deep-scan" checked>
-									<?php esc_html_e( 'Deep scan (detect theme, plugins, version)', 'robs-bulk-wp-platform-checker' ); ?>
+									<?php esc_html_e( 'Deep scan (detect theme, plugins, version, company name)', 'robs-bulk-wp-platform-checker' ); ?>
 								</label>
 								<label>
 									<input type="checkbox" id="wppc-harvest-contacts">
@@ -937,6 +945,9 @@ http://another-example.net"></textarea>
 					
 					// Details
 					let details = `<div class="wppc-details-item"><span class="wppc-details-label">Reason:</span> ${data.reason || '—'}</div>`;
+					if(data.company_name){
+						details += `<div class="wppc-details-item"><span class="wppc-details-label">Company:</span> ${escapeHtml(data.company_name)}</div>`;
+					}
 					if(data.theme){
 						details += `<div class="wppc-details-item"><span class="wppc-details-label">Theme:</span> ${data.theme}</div>`;
 					}
@@ -1212,7 +1223,7 @@ http://another-example.net"></textarea>
 					const includeDeep = $('#wppc-export-include-deep').checked;
 					
 					const header = includeDeep 
-						? ['Website','Status','Reason','Confidence','Theme','Plugins','WP Version','Email','Phone']
+						? ['Website','Status','Reason','Confidence','Company','Theme','Plugins','WP Version','Email','Phone']
 						: ['Website','Status','Reason','Confidence'];
 					
 					const lines = [header.join(',')];
@@ -1230,6 +1241,7 @@ http://another-example.net"></textarea>
 						];
 						
 						if(includeDeep){
+							cols.push(`"${(row.data.company_name || '').replace(/"/g,'""')}"`);
 							cols.push(`"${row.data.theme || ''}"`);
 							cols.push(`"${row.data.plugins ? row.data.plugins.join('; ') : ''}"`);
 							cols.push(`"${row.data.wp_version || ''}"`);
@@ -1258,9 +1270,12 @@ http://another-example.net"></textarea>
 							inconclusive: row.data.inconclusive,
 							confidence: row.data.confidence,
 							reason: row.data.reason,
+							company_name: row.data.company_name || null,
 							theme: row.data.theme || null,
 							plugins: row.data.plugins || [],
-							wp_version: row.data.wp_version || null
+							wp_version: row.data.wp_version || null,
+							contact_email: row.data.contact_email || null,
+							contact_phone: row.data.contact_phone || null
 						}));
 					
 					const timestamp = new Date().toISOString().slice(0,10);
@@ -1567,6 +1582,10 @@ http://another-example.net"></textarea>
 			if ( $harvest_contacts && $check['is_wordpress'] ) {
 				$contacts = $this->harvest_contact_info( $url );
 				$check    = array_merge( $check, $contacts );
+			} elseif ( $deep_scan && $check['is_wordpress'] && ! $harvest_contacts ) {
+				// Deep scan always harvests company name; email/phone only when harvest_contacts is on
+				$contacts = $this->harvest_contact_info( $url, true );
+				$check    = array_merge( $check, $contacts );
 			}
 
 			// Save to cache and history
@@ -1767,11 +1786,12 @@ http://another-example.net"></textarea>
 					'theme'         => $data['theme'] ?? null,
 					'plugins'       => ! empty( $data['plugins'] ) ? implode( ',', $data['plugins'] ) : null,
 					'wp_version'    => $data['wp_version'] ?? null,
+					'company_name'  => $data['company_name'] ?? null,
 					'contact_email' => $data['contact_email'] ?? null,
 					'contact_phone' => $data['contact_phone'] ?? null,
 					'checked_at'    => current_time( 'mysql' ),
 				],
-				[ '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ]
+				[ '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ]
 			);
 		}
 
@@ -1993,10 +2013,15 @@ http://another-example.net"></textarea>
 		/**
 		 * Harvest contact information from a WordPress site
 		 *
-		 * @param string $url Site URL.
-		 * @return array
+		 * Scrapes the homepage footer, /contact, /contact-us, /about, and /about-us pages.
+		 * Always attempts to extract a company name.  Email and phone are only extracted
+		 * when $name_only is false (i.e. the user ticked "Harvest contact information").
+		 *
+		 * @param string $url       Site URL.
+		 * @param bool   $name_only When true only the company name is returned.
+		 * @return array Keys: company_name, contact_email, contact_phone.
 		 */
-		private function harvest_contact_info( $url ) {
+		private function harvest_contact_info( $url, $name_only = false ) {
 			$args = [
 				'timeout'     => 10,
 				'redirection' => 5,
@@ -2005,22 +2030,22 @@ http://another-example.net"></textarea>
 			];
 
 			$contact_data = [
+				'company_name'  => null,
 				'contact_email' => null,
 				'contact_phone' => null,
 			];
 
-			// Common contact page URLs to check
-			$contact_pages = [
-				'/contact',
-				'/contact-us',
-				'/about',
-				'/about-us',
-			];
+			// Pages to check, in priority order.  Homepage is always first so we can
+			// read the footer without an extra request.
+			$pages_to_check = array_merge(
+				[ '' ], // homepage (footer)
+				[ '/contact', '/contact-us', '/about', '/about-us' ]
+			);
 
-			foreach ( $contact_pages as $page ) {
-				$page_url  = rtrim( $url, '/' ) . $page;
-				$response  = wp_safe_remote_get( $page_url, $args );
-				
+			foreach ( $pages_to_check as $page ) {
+				$page_url = rtrim( $url, '/' ) . $page;
+				$response = wp_safe_remote_get( $page_url, $args );
+
 				if ( is_wp_error( $response ) ) {
 					continue;
 				}
@@ -2035,81 +2060,75 @@ http://another-example.net"></textarea>
 					continue;
 				}
 
-				// Extract email addresses
-				if ( empty( $contact_data['contact_email'] ) && preg_match( '/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/', $body, $email_matches ) ) {
-					// Filter out common false positives
-					$email = $email_matches[0];
-					$excluded_patterns = [
-						'example.com',
-						'yoursite.com',
-						'yourdomain.com',
-						'placeholder',
-						'noreply@',
-						'no-reply@',
-					];
-					
-					$is_valid = true;
-					foreach ( $excluded_patterns as $pattern ) {
-						if ( stripos( $email, $pattern ) !== false ) {
-							$is_valid = false;
-							break;
+				// ----------------------------------------------------------------
+				// 1. Extract company name
+				// ----------------------------------------------------------------
+				if ( empty( $contact_data['company_name'] ) ) {
+					$contact_data['company_name'] = $this->extract_company_name( $body, $url );
+				}
+
+				// ----------------------------------------------------------------
+				// 2. Extract email (only when full contact harvesting is requested)
+				// ----------------------------------------------------------------
+				if ( ! $name_only && empty( $contact_data['contact_email'] ) ) {
+					if ( preg_match( '/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/', $body, $email_matches ) ) {
+						$email             = $email_matches[0];
+						$excluded_patterns = [
+							'example.com',
+							'yoursite.com',
+							'yourdomain.com',
+							'placeholder',
+							'noreply@',
+							'no-reply@',
+							'wordpress.org',
+							'w3.org',
+							'schema.org',
+						];
+
+						$is_valid = true;
+						foreach ( $excluded_patterns as $pattern ) {
+							if ( stripos( $email, $pattern ) !== false ) {
+								$is_valid = false;
+								break;
+							}
 						}
-					}
-					
-					if ( $is_valid ) {
-						$contact_data['contact_email'] = sanitize_email( $email );
+
+						if ( $is_valid ) {
+							$contact_data['contact_email'] = sanitize_email( $email );
+						}
 					}
 				}
 
-				// Extract phone numbers (various formats)
-				if ( empty( $contact_data['contact_phone'] ) ) {
-					// Remove script tags, style tags, and their content to avoid false matches
+				// ----------------------------------------------------------------
+				// 3. Extract phone number (only when full contact harvesting is requested)
+				// ----------------------------------------------------------------
+				if ( ! $name_only && empty( $contact_data['contact_phone'] ) ) {
 					$clean_body = preg_replace( '/<script\b[^>]*>(.*?)<\/script>/is', '', $body );
 					$clean_body = preg_replace( '/<style\b[^>]*>(.*?)<\/style>/is', '', $clean_body );
-					
-					// Phone patterns - looking for numbers with at least SOME formatting
+
 					$phone_patterns = [
-						// With context label and any common separators
 						'/(?:phone|tel|telephone|call|mobile|cell)[\s:]+(\+?[\d\s\-\(\)]{10,20})/i',
-						// International with +
 						'/(\+\d{1,3}[\s\-\(\)]?\d{2,4}[\s\-\(\)]?\d{3,4}[\s\-\(\)]?\d{3,4})/',
-						// US/UK format with brackets (xxx) xxx-xxxx or similar
 						'/(\(\d{3,4}\)[\s\-]?\d{3,4}[\s\-]?\d{4})/',
-						// Standard with dashes xxx-xxx-xxxx
 						'/(\d{3,4}\-\d{3,4}\-\d{4})/',
-						// Standard with spaces xxx xxx xxxx
 						'/(\d{3,4}\s\d{3,4}\s\d{4})/',
 					];
 
 					foreach ( $phone_patterns as $pattern ) {
 						if ( preg_match( $pattern, $clean_body, $phone_matches ) ) {
 							$phone = isset( $phone_matches[1] ) ? trim( $phone_matches[1] ) : trim( $phone_matches[0] );
-							
-							// Remove any HTML tags that might have been caught
 							$phone = wp_strip_all_tags( $phone );
 							$phone = trim( $phone );
-							
-							// Skip if empty after cleaning
-							if ( empty( $phone ) ) {
+
+							if ( empty( $phone ) || strpos( $phone, '.' ) !== false ) {
 								continue;
 							}
-							
-							// CRITICAL: No dots allowed (this catches decimals/version numbers)
-							if ( strpos( $phone, '.' ) !== false ) {
-								continue;
-							}
-							
-							// Clean up excessive whitespace
-							$phone = preg_replace( '/\s+/', ' ', $phone );
-							
-							// Count digits
+
+							$phone       = preg_replace( '/\s+/', ' ', $phone );
 							$digits_only = preg_replace( '/\D/', '', $phone );
 							$digit_count = strlen( $digits_only );
-							
-							// Valid phone: 7-15 digits
+
 							if ( $digit_count >= 7 && $digit_count <= 15 ) {
-								// Must have at least ONE separator character OR start with +
-								// This prevents pure digit strings like "8765543345567"
 								if ( preg_match( '/[\s\-\(\)]/', $phone ) || substr( $phone, 0, 1 ) === '+' ) {
 									$contact_data['contact_phone'] = sanitize_text_field( $phone );
 									break;
@@ -2119,18 +2138,155 @@ http://another-example.net"></textarea>
 					}
 				}
 
-				// If we found both email and phone, no need to check more pages
-				if ( $contact_data['contact_email'] && $contact_data['contact_phone'] ) {
+				// Stop early once we have everything we need
+				if ( $name_only && $contact_data['company_name'] ) {
+					break;
+				}
+				if ( ! $name_only && $contact_data['company_name'] && $contact_data['contact_email'] && $contact_data['contact_phone'] ) {
 					break;
 				}
 			}
 
-			// Final validation - remove phone if it contains a dot (safety check)
+			// Final validation
 			if ( ! empty( $contact_data['contact_phone'] ) && strpos( $contact_data['contact_phone'], '.' ) !== false ) {
 				$contact_data['contact_phone'] = null;
 			}
 
 			return $contact_data;
+		}
+
+		/**
+		 * Attempt to extract the company / site name from a page body.
+		 *
+		 * Strategy (in order of reliability):
+		 *   1. Footer copyright line  – © / Copyright [year] Company Name
+		 *   2. <meta property="og:site_name"> tag
+		 *   3. Schema.org Organization / LocalBusiness name
+		 *   4. <title> tag (cleaned up)
+		 *
+		 * @param string $body HTML body.
+		 * @param string $url  Site URL (used as fallback context).
+		 * @return string|null
+		 */
+		private function extract_company_name( $body, $url ) {
+			// ---- 1. Footer copyright line ----
+			// Match patterns like:
+			//   © 2024 Acme Ltd   |   Copyright 2024 Acme Corp   |   Copyright © 2024 Acme
+			$copyright_patterns = [
+				// © or (c) followed by optional year then company name
+				'/(?:©|&copy;|\(c\))\s*(?:\d{4}[\s\-–]+\d{4}|\d{4})?\s*([A-Z][^\n<|·–—]{2,60}?)(?:\s*[|·–—\.<]|\s*(?:all rights|ltd|llc|inc|co\.|limited|plc|gmbh|bv|srl|pty|pvt)/i',
+				// "Copyright [year] Company"
+				'/copyright\s*(?:©|&copy;)?\s*(?:\d{4}[\s\-–]+\d{4}|\d{4})?\s+([A-Z][^\n<|·–—]{2,60}?)(?:\s*[|·–—\.<]|\s*(?:all rights|ltd|llc|inc|co\.|limited|plc|gmbh|bv|srl|pty|pvt)|$)/im',
+			];
+
+			// Focus on the footer area if present, otherwise use full body
+			$footer_body = $body;
+			if ( preg_match( '/<footer[^>]*>(.*?)<\/footer>/is', $body, $footer_match ) ) {
+				$footer_body = $footer_match[1];
+			} elseif ( preg_match( '/#footer[^{]*\{(.*?)\}/is', $body, $footer_match ) ) {
+				// No semantic footer tag – try id/class heuristics on stripped text
+				$footer_body = $body;
+			}
+
+			foreach ( $copyright_patterns as $pattern ) {
+				if ( preg_match( $pattern, $footer_body, $m ) ) {
+					$name = $this->clean_company_name( $m[1] );
+					if ( $name ) {
+						return $name;
+					}
+				}
+			}
+
+			// ---- 2. Open Graph site name ----
+			if ( preg_match( '/<meta[^>]+property=["\']og:site_name["\'][^>]+content=["\']([^"\']{2,100})["\'][^>]*>/i', $body, $m ) ||
+				 preg_match( '/<meta[^>]+content=["\']([^"\']{2,100})["\'][^>]+property=["\']og:site_name["\'][^>]*>/i', $body, $m ) ) {
+				$name = $this->clean_company_name( $m[1] );
+				if ( $name ) {
+					return $name;
+				}
+			}
+
+			// ---- 3. Schema.org JSON-LD (Organization / LocalBusiness) ----
+			if ( preg_match_all( '/<script[^>]+type=["\']application\/ld\+json["\'][^>]*>(.*?)<\/script>/is', $body, $scripts ) ) {
+				foreach ( $scripts[1] as $json_str ) {
+					$schema = json_decode( $json_str, true );
+					if ( ! is_array( $schema ) ) {
+						continue;
+					}
+					// Handle @graph arrays
+					$entries = isset( $schema['@graph'] ) ? $schema['@graph'] : [ $schema ];
+					foreach ( $entries as $entry ) {
+						if ( ! is_array( $entry ) ) {
+							continue;
+						}
+						$type = $entry['@type'] ?? '';
+						if ( in_array( $type, [ 'Organization', 'LocalBusiness', 'Corporation', 'NGO', 'Store', 'Restaurant', 'Hotel', 'MedicalOrganization', 'EducationalOrganization', 'GovernmentOrganization' ], true ) ) {
+							if ( ! empty( $entry['name'] ) ) {
+								$name = $this->clean_company_name( $entry['name'] );
+								if ( $name ) {
+									return $name;
+								}
+							}
+						}
+					}
+				}
+			}
+
+			// ---- 4. Page <title> tag (last resort) ----
+			if ( preg_match( '/<title[^>]*>([^<]{2,100})<\/title>/i', $body, $m ) ) {
+				// Titles often look like "Company Name – Tagline" or "Page | Company"
+				$title = html_entity_decode( $m[1], ENT_QUOTES, 'UTF-8' );
+				// Split on common separators and take the longest non-generic segment
+				$parts = preg_split( '/\s*[\|\-–—·•]\s*/', $title );
+				$parts = array_filter( array_map( 'trim', $parts ) );
+				// Discard generic words
+				$generic = [ 'home', 'homepage', 'welcome', 'index', 'untitled', 'just another wordpress site' ];
+				$parts   = array_filter( $parts, function( $p ) use ( $generic ) {
+					return ! in_array( strtolower( $p ), $generic, true );
+				} );
+				if ( $parts ) {
+					// Prefer the last segment (often the brand) if multiple exist
+					$name = $this->clean_company_name( end( $parts ) );
+					if ( $name ) {
+						return $name;
+					}
+				}
+			}
+
+			return null;
+		}
+
+		/**
+		 * Clean and validate a candidate company name string.
+		 *
+		 * @param string $raw Raw extracted string.
+		 * @return string|null Sanitized name or null if invalid.
+		 */
+		private function clean_company_name( $raw ) {
+			// Decode HTML entities
+			$name = html_entity_decode( trim( $raw ), ENT_QUOTES, 'UTF-8' );
+
+			// Strip HTML tags
+			$name = wp_strip_all_tags( $name );
+
+			// Remove trailing punctuation / legal suffixes noise
+			$name = preg_replace( '/\s+/', ' ', $name );
+			$name = rtrim( $name, ' .,;:|-–—' );
+			$name = trim( $name );
+
+			// Reject if too short, too long, or looks like a URL/email
+			if ( strlen( $name ) < 2 || strlen( $name ) > 100 ) {
+				return null;
+			}
+			if ( preg_match( '/^https?:\/\//i', $name ) || strpos( $name, '@' ) !== false ) {
+				return null;
+			}
+			// Reject if it's all digits
+			if ( preg_match( '/^\d+$/', $name ) ) {
+				return null;
+			}
+
+			return sanitize_text_field( $name );
 		}
 
 		/**
@@ -2260,6 +2416,7 @@ http://another-example.net"></textarea>
 			theme varchar(200) DEFAULT NULL,
 			plugins text DEFAULT NULL,
 			wp_version varchar(20) DEFAULT NULL,
+			company_name varchar(200) DEFAULT NULL,
 			contact_email varchar(200) DEFAULT NULL,
 			contact_phone varchar(50) DEFAULT NULL,
 			checked_at datetime NOT NULL,
