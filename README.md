@@ -222,7 +222,7 @@ The plugin features a modern, professional interface:
 
 ## 🔄 Changelog
 
-### Version 2.1.0 - Latest Release
+### Version 2.2.0 - Latest Release
 - Added phone & email harvesting capabilities
 
 ### Version 2.0.0 - Major Update
