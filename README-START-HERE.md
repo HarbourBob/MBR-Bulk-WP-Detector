@@ -1,4 +1,4 @@
-# 🚀 MBR Bulk WP Detector v2.2.0 - Quick Start
+# 🚀 MBR Bulk WP Detector v2.3.0 - Quick Start
 
 ## Author
 Robert Palmer - https://littlewebshack.com
@@ -10,7 +10,7 @@ Your WordPress plugin has been **completely transformed** from version 1.5.2 to 
 ## ⚡ What's New (The Headlines)
 
 ### 🆕 16 Brand New Features
-✅ Deep scan (detect themes, plugins, WP versions)  
+✅ Deep scan (detect themes, plugins, widgets, WP versions)  
 ✅ Smart caching (7-day retention, 10x faster)  
 ✅ Save/load URL lists  
 ✅ CSV/TXT file upload  
@@ -107,6 +107,7 @@ Your WordPress plugin has been **completely transformed** from version 1.5.2 to 
 - WordPress version number
 - Active theme name
 - Installed plugins (top 10)
+- Widgets in use (classic sidebar, Gutenberg blocks, Elementor, Bricks, Beaver Builder, Divi, WPBakery, Oxygen)
 
 **Confidence Levels:** High (99%+) | Medium (70-90%) | Low (<70%)
 

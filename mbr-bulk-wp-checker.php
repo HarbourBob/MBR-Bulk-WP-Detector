@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name:       MBR Bulk WP Detector
- * Description:       Bulk check websites to detect WordPress installations. Find themes, plugins, and versions. Perfect for agencies and marketers targeting WordPress users.
- * Version:           2.2.0
+ * Description:       Bulk check websites to detect WordPress installations. Find themes, plugins, widgets, and versions. Perfect for agencies and marketers targeting WordPress users.
+ * Version:           2.4.1
  * Author:            Robert Palmer
  * Author URI:        https://littlewebshack.com
  * Requires at least: 5.6
@@ -36,6 +36,37 @@ add_filter( 'plugin_row_meta', function ( $links, $file, $data ) {
 }, 10, 3 );
 
 
+
+require_once __DIR__ . '/mbr-updater.php';
+
+mbr_register_updates( array(
+    'source' => 'json',
+    'url'    => 'https://raw.githubusercontent.com/HarbourBob/mbr-updates/main/mbr-bulk-wp-detector.json',
+    'file'   => __FILE__,
+    'slug'   => 'mbr-bulk-wp-detector',
+) );
+
+
+// Buy Me a Coffee
+add_filter( 'plugin_row_meta', function ( $links, $file, $data ) {
+    if ( ! function_exists( 'plugin_basename' ) || $file !== plugin_basename( __FILE__ ) ) {
+        return $links;
+    }
+
+    $url = 'https://buymeacoffee.com/robertpalmer/';
+    $links[] = sprintf(
+	// translators: %s: The name of the plugin author.
+        '<a href="%s" target="_blank" rel="noopener nofollow" aria-label="%s">☕ %s</a>',
+        esc_url( $url ),
+		// translators: %s: The name of the plugin author.
+        esc_attr( sprintf( __( 'Buy %s a coffee', 'robs-bulk-wp-platform-checker' ), isset( $data['AuthorName'] ) ? $data['AuthorName'] : __( 'the author', 'robs-bulk-wp-platform-checker' ) ) ),
+        esc_html__( 'Buy me a coffee', 'robs-bulk-wp-platform-checker' )
+    );
+
+    return $links;
+}, 10, 3 );
+
+
 if ( ! class_exists( 'WP_Platform_Checker' ) ) {
 	/**
 	 * Main plugin class for WP Platform Checker
@@ -48,7 +79,7 @@ if ( ! class_exists( 'WP_Platform_Checker' ) ) {
 		 *
 		 * @var string
 		 */
-		private $version = '2.2.0';
+		private $version = '2.3.0';
 
 		/**
 		 * Plugin slug
@@ -115,6 +146,14 @@ if ( ! class_exists( 'WP_Platform_Checker' ) ) {
 					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 					$wpdb->query( "ALTER TABLE {$this->history_table} ADD COLUMN company_name varchar(200) DEFAULT NULL AFTER wp_version" );
 				}
+
+				// Migrate: add widgets column if it doesn't exist (v2.2.0 -> v2.3.0)
+				// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+				$widgets_col = $wpdb->get_results( "SHOW COLUMNS FROM {$this->history_table} LIKE 'widgets'" );
+				if ( empty( $widgets_col ) ) {
+					// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.InterpolatedNotPrepared
+					$wpdb->query( "ALTER TABLE {$this->history_table} ADD COLUMN widgets longtext DEFAULT NULL AFTER contact_phone" );
+				}
 				return;
 			}
 			
@@ -145,6 +184,7 @@ if ( ! class_exists( 'WP_Platform_Checker' ) ) {
 				company_name varchar(200) DEFAULT NULL,
 				contact_email varchar(200) DEFAULT NULL,
 				contact_phone varchar(50) DEFAULT NULL,
+				widgets longtext DEFAULT NULL,
 				checked_at datetime NOT NULL,
 				PRIMARY KEY  (id),
 				KEY url (url(191)),
@@ -227,7 +267,7 @@ http://another-example.net"></textarea>
 								<h4><?php esc_html_e( 'Detection Options', 'robs-bulk-wp-platform-checker' ); ?></h4>
 								<label>
 									<input type="checkbox" id="wppc-deep-scan" checked>
-									<?php esc_html_e( 'Deep scan (detect theme, plugins, version, company name)', 'robs-bulk-wp-platform-checker' ); ?>
+									<?php esc_html_e( 'Deep scan (detect theme, plugins, widgets, version, company name)', 'robs-bulk-wp-platform-checker' ); ?>
 								</label>
 								<label>
 									<input type="checkbox" id="wppc-harvest-contacts">
@@ -330,7 +370,7 @@ http://another-example.net"></textarea>
 								</label>
 								<label>
 									<input type="checkbox" id="wppc-export-include-deep">
-									<?php esc_html_e( 'Include deep scan data (theme, plugins, version, contacts)', 'robs-bulk-wp-platform-checker' ); ?>
+									<?php esc_html_e( 'Include deep scan data (theme, plugins, widgets, version, contacts)', 'robs-bulk-wp-platform-checker' ); ?>
 								</label>
 							</div>
 
@@ -378,6 +418,7 @@ http://another-example.net"></textarea>
 												<span class="wppc-sort-indicator"></span>
 											</th>
 											<th><?php esc_html_e( 'Details', 'robs-bulk-wp-platform-checker' ); ?></th>
+											<th><?php esc_html_e( 'Widgets', 'robs-bulk-wp-platform-checker' ); ?></th>
 											<th class="wppc-sortable" data-sort="confidence">
 												<?php esc_html_e( 'Confidence', 'robs-bulk-wp-platform-checker' ); ?>
 												<span class="wppc-sort-indicator"></span>
@@ -739,6 +780,66 @@ http://another-example.net"></textarea>
 			.wppc-cache-card p {
 				margin-bottom: 10px;
 			}
+			.wppc-widgets-cell {
+				font-size: 12px;
+				line-height: 1.5;
+				max-height: 180px;
+				overflow-y: auto;
+			}
+			.wppc-widgets-cell .wppc-widget-group {
+				margin: 2px 0;
+				padding: 3px 0;
+				border-bottom: 1px dotted #e5e5e5;
+			}
+			.wppc-widgets-cell .wppc-widget-group:last-child {
+				border-bottom: none;
+			}
+			.wppc-widgets-cell summary {
+				cursor: pointer;
+				list-style: none;
+				outline: none;
+				user-select: none;
+				padding: 2px 0;
+			}
+			.wppc-widgets-cell summary::-webkit-details-marker {
+				display: none;
+			}
+			.wppc-widgets-cell summary::before {
+				content: '▸';
+				display: inline-block;
+				margin-right: 4px;
+				color: #646970;
+				font-size: 10px;
+				transition: transform 0.15s ease;
+			}
+			.wppc-widgets-cell details[open] summary::before {
+				transform: rotate(90deg);
+			}
+			.wppc-widgets-cell .wppc-widget-label {
+				font-weight: 600;
+				color: #1d2327;
+			}
+			.wppc-widgets-cell .wppc-widget-count {
+				display: inline-block;
+				background: #2271b1;
+				color: #fff;
+				font-size: 10px;
+				font-weight: 600;
+				padding: 1px 6px;
+				border-radius: 8px;
+				margin-left: 4px;
+				min-width: 16px;
+				text-align: center;
+			}
+			.wppc-widgets-cell .wppc-widget-items {
+				margin: 4px 0 4px 16px;
+				color: #50575e;
+				word-break: break-word;
+			}
+			.wppc-widgets-none {
+				color: #a7aaad;
+				font-style: italic;
+			}
 			</style>
 
 			<script type="text/javascript">
@@ -917,6 +1018,7 @@ http://another-example.net"></textarea>
 						<td><a href="${url.replace(/"/g,'&quot;')}" target="_blank" rel="noopener">${url.replace(/</g,'&lt;')}</a></td>
 						<td class="wppc-status"><span class="wppc-badge">Pending</span></td>
 						<td class="wppc-details">—</td>
+						<td class="wppc-widgets-cell"><span class="wppc-widgets-none">—</span></td>
 						<td class="wppc-confidence">—</td>
 					`;
 					$tbody.appendChild(tr);
@@ -929,6 +1031,7 @@ http://another-example.net"></textarea>
 				function updateRow(tr, data){
 					const statusCell = tr.querySelector('.wppc-status');
 					const detailsCell = tr.querySelector('.wppc-details');
+					const widgetsCell = tr.querySelector('.wppc-widgets-cell');
 					const confidenceCell = tr.querySelector('.wppc-confidence');
 					
 					// Status badge
@@ -965,12 +1068,59 @@ http://another-example.net"></textarea>
 					}
 					detailsCell.innerHTML = details;
 					
+					// Widgets
+					widgetsCell.innerHTML = formatWidgets(data.widgets);
+					
 					// Confidence
 					const conf = (data.confidence || 'low').toUpperCase();
 					let badgeClass = 'wppc-badge-low';
 					if(conf === 'HIGH') badgeClass = 'wppc-badge-high';
 					else if(conf === 'MEDIUM') badgeClass = 'wppc-badge-medium';
 					confidenceCell.innerHTML = `<span class="wppc-badge ${badgeClass}">${conf}</span>`;
+				}
+
+				/**
+				 * Format widgets object into grouped, collapsible HTML.
+				 * widgets is an object keyed by source (classic, blocks, elementor, ...) each
+				 * containing an array of widget type names.
+				 */
+				const WIDGET_LABELS = {
+					classic: 'Classic',
+					blocks: 'Blocks',
+					elementor: 'Elementor',
+					bricks: 'Bricks',
+					beaver: 'Beaver Builder',
+					divi: 'Divi',
+					wpbakery: 'WPBakery',
+					oxygen: 'Oxygen'
+				};
+
+				function formatWidgets(widgets){
+					if(!widgets || typeof widgets !== 'object' || Array.isArray(widgets)){
+						return '<span class="wppc-widgets-none">—</span>';
+					}
+					const sources = Object.keys(widgets);
+					if(sources.length === 0){
+						return '<span class="wppc-widgets-none">—</span>';
+					}
+
+					const parts = [];
+					sources.forEach(src => {
+						const items = widgets[src] || [];
+						if(!Array.isArray(items) || items.length === 0) return;
+						const label = WIDGET_LABELS[src] || src;
+						parts.push(
+							'<details class="wppc-widget-group">' +
+								'<summary>' +
+									'<span class="wppc-widget-label">' + escapeHtml(label) + '</span>' +
+									'<span class="wppc-widget-count">' + items.length + '</span>' +
+								'</summary>' +
+								'<div class="wppc-widget-items">' + escapeHtml(items.join(', ')) + '</div>' +
+							'</details>'
+						);
+					});
+
+					return parts.length > 0 ? parts.join('') : '<span class="wppc-widgets-none">—</span>';
 				}
 
 				/**
@@ -1223,7 +1373,7 @@ http://another-example.net"></textarea>
 					const includeDeep = $('#wppc-export-include-deep').checked;
 					
 					const header = includeDeep 
-						? ['Website','Status','Reason','Confidence','Company','Theme','Plugins','WP Version','Email','Phone']
+						? ['Website','Status','Reason','Confidence','Company','Theme','Plugins','WP Version','Email','Phone','Widgets']
 						: ['Website','Status','Reason','Confidence'];
 					
 					const lines = [header.join(',')];
@@ -1247,6 +1397,7 @@ http://another-example.net"></textarea>
 							cols.push(`"${row.data.wp_version || ''}"`);
 							cols.push(`"${row.data.contact_email || ''}"`);
 							cols.push(`"${row.data.contact_phone || ''}"`);
+							cols.push(`"${widgetsToCsv(row.data.widgets).replace(/"/g,'""')}"`);
 						}
 						
 						lines.push(cols.join(','));
@@ -1254,6 +1405,22 @@ http://another-example.net"></textarea>
 					
 					const timestamp = new Date().toISOString().slice(0,10);
 					downloadFile(lines.join('\n'), `wp-platform-checker-${timestamp}.csv`, 'text/csv');
+				}
+
+				/**
+				 * Flatten widgets object into a single CSV-friendly string.
+				 * Format: "Elementor: heading, image, button | Classic: widget_search"
+				 */
+				function widgetsToCsv(widgets){
+					if(!widgets || typeof widgets !== 'object' || Array.isArray(widgets)) return '';
+					const parts = [];
+					Object.keys(widgets).forEach(src => {
+						const items = widgets[src] || [];
+						if(!Array.isArray(items) || items.length === 0) return;
+						const label = WIDGET_LABELS[src] || src;
+						parts.push(label + ': ' + items.join(', '));
+					});
+					return parts.join(' | ');
 				}
 
 				/**
@@ -1275,7 +1442,8 @@ http://another-example.net"></textarea>
 							plugins: row.data.plugins || [],
 							wp_version: row.data.wp_version || null,
 							contact_email: row.data.contact_email || null,
-							contact_phone: row.data.contact_phone || null
+							contact_phone: row.data.contact_phone || null,
+							widgets: row.data.widgets || {}
 						}));
 					
 					const timestamp = new Date().toISOString().slice(0,10);
@@ -1789,9 +1957,10 @@ http://another-example.net"></textarea>
 					'company_name'  => $data['company_name'] ?? null,
 					'contact_email' => $data['contact_email'] ?? null,
 					'contact_phone' => $data['contact_phone'] ?? null,
+					'widgets'       => ! empty( $data['widgets'] ) ? wp_json_encode( $data['widgets'] ) : null,
 					'checked_at'    => current_time( 'mysql' ),
 				],
-				[ '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ]
+				[ '%s', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s' ]
 			);
 		}
 
@@ -1818,6 +1987,7 @@ http://another-example.net"></textarea>
 				'theme'        => null,
 				'plugins'      => [],
 				'wp_version'   => null,
+				'widgets'      => [],
 			];
 
 			// 1) HEAD request: look for Link header to wp-json
@@ -2008,6 +2178,180 @@ http://another-example.net"></textarea>
 				$plugins = array_keys( $plugins );
 			}
 			$result['plugins'] = $plugins;
+
+			// Detect widgets (classic sidebar widgets, Gutenberg blocks, and page builder widgets)
+			$result['widgets'] = $this->detect_widgets( $body );
+		}
+
+		/**
+		 * Detect widgets used on the page.
+		 *
+		 * Covers classic sidebar widgets, Gutenberg/block widgets, and widgets from
+		 * the main page builders (Elementor, Bricks, Beaver Builder, Divi, WPBakery,
+		 * Oxygen). For each page builder a signature check is performed first to
+		 * reduce false positives from unrelated CSS classes.
+		 *
+		 * @since 2.3.0
+		 * @param string $body HTML body of the page.
+		 * @return array Associative array keyed by source (classic, blocks, elementor,
+		 *               bricks, beaver, divi, wpbakery, oxygen) each containing a
+		 *               de-duplicated list of widget type names, ordered by frequency.
+		 */
+		private function detect_widgets( $body ) {
+			if ( ! is_string( $body ) || empty( $body ) ) {
+				return [];
+			}
+
+			$widgets = [];
+			$cap     = 25; // Maximum widget types to keep per source.
+
+			/**
+			 * Extract and count matches from a regex, returning top N by frequency.
+			 *
+			 * @param string $pattern Regex pattern with one capturing group.
+			 * @param string $body    Body to search.
+			 * @param array  $exclude Names to filter out (structural/noise classes).
+			 * @param int    $cap     Max results to return.
+			 * @return array
+			 */
+			$extract = function ( $pattern, $body, $exclude = [], $cap = 25 ) {
+				$out = [];
+				if ( preg_match_all( $pattern, $body, $matches ) ) {
+					$names  = array_map( 'strtolower', $matches[1] );
+					if ( $exclude ) {
+						$names = array_values( array_diff( $names, $exclude ) );
+					}
+					$counts = array_count_values( $names );
+					arsort( $counts );
+					$out = array_keys( array_slice( $counts, 0, $cap, true ) );
+				}
+				return $out;
+			};
+
+			// 1. Classic sidebar widgets (e.g. widget_search, widget_nav_menu, widget_block).
+			$classic = $extract(
+				'#class=["\'][^"\']*\bwidget_([a-z0-9_-]+)#i',
+				$body,
+				[],
+				$cap
+			);
+			if ( $classic ) {
+				$widgets['classic'] = $classic;
+			}
+
+			// 2. Gutenberg / block widgets (wp-block-*).
+			$blocks_exclude = [ 'group', 'columns', 'column' ]; // too generic to be useful on their own.
+			$blocks = $extract(
+				'#\bwp-block-([a-z][a-z0-9_-]*)\b#i',
+				$body,
+				$blocks_exclude,
+				$cap
+			);
+			if ( $blocks ) {
+				$widgets['blocks'] = $blocks;
+			}
+
+			// 3. Elementor — prefer data-widget_type attribute (most reliable).
+			if ( stripos( $body, 'elementor-' ) !== false || stripos( $body, 'data-elementor' ) !== false ) {
+				$elementor = [];
+				if ( preg_match_all( '#data-widget_type=["\']([a-z0-9_-]+)(?:\.[a-z0-9_-]+)?["\']#i', $body, $matches ) ) {
+					$names  = array_map( 'strtolower', $matches[1] );
+					$counts = array_count_values( $names );
+					arsort( $counts );
+					$elementor = array_keys( array_slice( $counts, 0, $cap, true ) );
+				}
+				// Fallback to class-based detection if no data attributes found.
+				if ( empty( $elementor ) ) {
+					$elementor = $extract( '#\belementor-widget-([a-z0-9_-]+)\b#i', $body, [], $cap );
+				}
+				if ( $elementor ) {
+					$widgets['elementor'] = $elementor;
+				}
+			}
+
+			// 4. Bricks Builder (brxe-*).
+			if ( stripos( $body, 'brxe-' ) !== false || stripos( $body, 'brx-body' ) !== false ) {
+				$bricks = $extract( '#\bbrxe-([a-z0-9_-]+)\b#i', $body, [], $cap );
+				if ( $bricks ) {
+					$widgets['bricks'] = $bricks;
+				}
+			}
+
+			// 5. Beaver Builder (fl-module-*).
+			if ( stripos( $body, 'fl-builder' ) !== false || stripos( $body, 'fl-module' ) !== false ) {
+				$beaver = $extract(
+					'#\bfl-module-([a-z0-9_-]+)\b#i',
+					$body,
+					[ 'content' ], // fl-module-content is a wrapper, not a module type.
+					$cap
+				);
+				if ( $beaver ) {
+					$widgets['beaver'] = $beaver;
+				}
+			}
+
+			// 6. Divi (et_pb_*).
+			if ( stripos( $body, 'et_pb_section' ) !== false || stripos( $body, 'et-db' ) !== false || stripos( $body, 'et_pb_row' ) !== false ) {
+				$divi = $extract(
+					'#\bet_pb_([a-z0-9_]+)\b#i',
+					$body,
+					// Structural / layout / non-module noise.
+					[
+						'section', 'row', 'row_inner', 'column', 'module', 'preload',
+						'with_border', 'column_1_1', 'column_1_2', 'column_1_3', 'column_1_4',
+						'column_2_3', 'column_3_4', 'column_1_5', 'column_2_5', 'column_3_5',
+						'column_4_5', 'column_2_4', 'column_3_5_tb_footer', 'equal_heights',
+						'fullwidth', 'gutters1', 'gutters2', 'gutters3', 'gutters4',
+					],
+					$cap
+				);
+				if ( $divi ) {
+					$widgets['divi'] = $divi;
+				}
+			}
+
+			// 7. WPBakery / Visual Composer (vc_*).
+			if ( stripos( $body, 'wpb-content-wrapper' ) !== false || stripos( $body, 'js_composer' ) !== false || stripos( $body, 'vc_row' ) !== false ) {
+				$wpbakery_exclude = [
+					'row', 'row_inner', 'column', 'column_container', 'column_inner',
+					'col', 'col-sm-1', 'col-sm-2', 'col-sm-3', 'col-sm-4', 'col-sm-5',
+					'col-sm-6', 'col-sm-7', 'col-sm-8', 'col-sm-9', 'col-sm-10',
+					'col-sm-11', 'col-sm-12', 'col-md-1', 'col-md-2', 'col-md-3',
+					'col-md-4', 'col-md-5', 'col-md-6', 'col-md-7', 'col-md-8',
+					'col-md-9', 'col-md-10', 'col-md-11', 'col-md-12', 'col-lg-3',
+					'col-lg-4', 'col-lg-6', 'col-lg-8', 'col-lg-12', 'col-xs-12',
+					'inner', 'container', 'row-fluid', 'row-o-content-top',
+					'row-o-equal-height', 'row-o-full-height', 'custom_heading',
+				];
+				$wpbakery = $extract(
+					'#\bvc_([a-z][a-z0-9_]*)\b#i',
+					$body,
+					$wpbakery_exclude,
+					$cap
+				);
+				if ( $wpbakery ) {
+					$widgets['wpbakery'] = $wpbakery;
+				}
+			}
+
+			// 8. Oxygen Builder (ct-*).
+			if ( stripos( $body, 'oxygen-inner-content' ) !== false || strpos( $body, 'id="ct-builder"' ) !== false || stripos( $body, 'ct-section' ) !== false ) {
+				$oxygen = $extract(
+					'#\bct-([a-z][a-z0-9_-]*)\b#i',
+					$body,
+					[ 'section', 'div-block', 'inner-content', 'builder' ],
+					$cap
+				);
+				// Strip auto-generated numbered identifiers (e.g. section-1, span-3, column-12).
+				$oxygen = array_values( array_filter( $oxygen, function ( $n ) {
+					return ! preg_match( '/^(section|span|column|row|div-block)-\d+$/', $n );
+				} ) );
+				if ( $oxygen ) {
+					$widgets['oxygen'] = $oxygen;
+				}
+			}
+
+			return $widgets;
 		}
 
 		/**

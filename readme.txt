@@ -3,8 +3,8 @@ Contributors: robertpalmer
 Donate link: https://littlewebshack.com/about/
 Tags: wordpress detector, bulk checker, lead generation, platform detection, site analyzer
 Requires at least: 5.0
-Tested up to: 6.4
-Stable tag: 2.2.0
+Tested up to: 6.9
+Stable tag: 2.3.0
 Requires PHP: 7.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -15,7 +15,7 @@ Bulk detect WordPress installations across unlimited URLs. Perfect for agencies,
 
 **Transform your lead qualification process with bulk WordPress detection!**
 
-MBR Bulk WP Detector is a powerful tool designed for agencies, marketers, developers, and freelancers who need to quickly identify which websites are running WordPress. Upload hundreds or thousands of URLs and get instant results with detailed insights about themes, plugins, and versions.  It also scans for company name, phone number and email address.
+MBR Bulk WP Detector is a powerful tool designed for agencies, marketers, developers, and freelancers who need to quickly identify which websites are running WordPress. Upload hundreds or thousands of URLs and get instant results with detailed insights about themes, plugins, widgets, and versions. It also scans for company name, phone number and email address.
 
 = Perfect For =
 
@@ -129,6 +129,7 @@ Export comprehensive CSV reports with full detection data and statistics.
 * WordPress version number
 * Active theme name
 * Top 10 installed plugins
+* Widgets in use (classic sidebar widgets, Gutenberg blocks, and page builder widgets for Elementor, Bricks, Beaver Builder, Divi, WPBakery, and Oxygen)
 * Generator meta tags
 
 **System Requirements:**
@@ -214,7 +215,13 @@ Yes! Save lists with custom names and load them later for repeat campaigns. Perf
 
 = Does deep scan work on all sites? =
 
-Deep scan attempts to detect WordPress version, theme, and plugins. Success depends on whether the site exposes this information. Many sites do, but some hide it for security.
+Deep scan attempts to detect WordPress version, theme, plugins, and widgets. Success depends on whether the site exposes this information. Many sites do, but some hide it for security.
+
+= Which widgets can this plugin detect? =
+
+Deep scan identifies three categories of widgets: classic sidebar widgets (Search, Recent Posts, Categories, Nav Menu, etc.), Gutenberg blocks (including core and third-party namespaced blocks like `kadence/rowlayout`), and page builder widgets for the six major builders: Elementor, Bricks, Beaver Builder, Divi, WPBakery, and Oxygen. Results appear in a dedicated Widgets column and are included in CSV/JSON exports when "Include deep scan data" is enabled.
+
+Note: classic sidebar widgets typically only render on blog/archive pages, so on sites with a static homepage the "Classic" group may come back empty. Gutenberg blocks and page builder widgets are detected reliably from the homepage because they render inline with the main content.
 
 = What's the concurrency setting? =
 
@@ -229,6 +236,17 @@ This plugin is specifically designed for WordPress detection. While it accuratel
 No artificial limits! The only limitation is your server resources. Standard shared hosting easily handles 500-1000 URLs per batch.
 
 == Changelog ==
+= 2.3.0 - Widget Detection =
+
+* New: Deep scan now detects widgets in use on each site, covering classic sidebar widgets, Gutenberg blocks, and page builder widgets for Elementor, Bricks, Beaver Builder, Divi, WPBakery, and Oxygen
+* New: Dedicated Widgets column in the results table, grouped by source with collapsible counts
+* New: Widgets included in CSV exports (single column, pipe-separated by source) and JSON exports (structured object)
+* New: `widgets` column added to the history table (automatic migration for existing installs)
+* Zero extra HTTP requests: widget detection reuses the homepage HTML already fetched for theme and plugin detection, so scan times are unchanged
+* Each page builder is gated by a signature check to reduce false positives from unrelated CSS classes
+* Structural/grid classes filtered out (e.g. `et_pb_section`, `vc_col-md-6`, `fl-module-content`) so only real widget types are reported
+* Widget types capped at 25 per source, sorted by frequency of appearance
+
 = 2.2.0 - Added Phone & Email Harvesting
 
 = 2.0.0 - November 2025 =
@@ -297,6 +315,9 @@ No artificial limits! The only limitation is your server resources. Standard sha
 * CSV export functionality
 
 == Upgrade Notice ==
+
+= 2.3.0 =
+Adds widget detection to deep scan. Identifies classic sidebar widgets, Gutenberg blocks, and page builder widgets (Elementor, Bricks, Beaver Builder, Divi, WPBakery, Oxygen) in a new Widgets column. Database migration runs automatically. Zero performance impact on scan times.
 
 = 2.0.0 =
 MAJOR UPDATE! Complete transformation with 16 new features, professional UI redesign, smart caching (24x faster!), deep scanning, and critical bug fixes. Backup recommended before upgrading. This is a game-changing update!
